@@ -1,0 +1,15 @@
+name: k8s-job
+description: Runs your build step as a kubernetes job
+author: https://github.com/pr8kerl
+requirements:
+  - kubectl
+  - kustomize
+configuration:
+  properties:
+    image:
+      type: string
+    command:
+      type: array
+  required:
+    - image
+  additionalProperties: false
