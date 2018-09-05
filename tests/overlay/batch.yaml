@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # the job name must match the plugin name parameter value
+  # as defined in pipeline.yaml
+  name: k8s-kustom-job
+spec:
+  template:
+    metadata:
+      # example annotation kustomization
+      annotations:
+        iam.amazonaws.com/role: arn:aws:iam::123456789012:role/letmein
+    spec:
+      containers:
+      # the container must remain step as per the base template
+      - name: step
+        # overide image and command as desired
+        image: bash
+        command: [ "find", "." ]

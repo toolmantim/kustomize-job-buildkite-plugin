@@ -1,15 +1,18 @@
-name: k8s-job
-description: Runs your build step as a kubernetes job
+name: kustomize-job
+description: Runs your build step as a kustomized kubernetes job
 author: https://github.com/pr8kerl
 requirements:
   - kubectl
   - kustomize
 configuration:
   properties:
-    image:
+    name:
       type: string
-    command:
+    overlay:
       type: array
+    debug:
+      type: string
   required:
-    - image
+    - name
+    - overlay
   additionalProperties: false

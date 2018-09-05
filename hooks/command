@@ -2,13 +2,147 @@
 
 set -euo pipefail
 
-debug_mode='off'
-if [[ "${BUILDKITE_PLUGIN_K8S_JOB_DEBUG:-false}" =~ (true|on|1) ]] ; then
+return_code=1
+debug_mode=0
+
+if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_DEBUG:-false}" =~ (true|on|1) ]] ; then
   echo "--- :hammer: Enabling debug mode"
-  debug_mode='on'
+  debug_mode=1
+  set -x
 fi
 
-echo
-echo pwd: $(pwd)
-echo ls: $(ls)
-echo env: $(env)
+if [[ -z "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME:-}" ]] ; then
+  echo "required property name is not set."
+  exit 1
+fi
+
+if [[ -z "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY:-}" ]] ; then
+  echo "required property overlay is not set."
+  exit 1
+fi
+
+if [[ ! -d "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}" ]] ; then
+  echo "required property overlay directory is not found: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}"
+  exit 1
+fi
+
+if [[ ! -f "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}/kustomization.yaml" ]] ; then
+  echo "missing kustomization.yaml file in directory ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}"
+  exit 1
+fi
+
+mkdir -p /kustomize/base
+
+cat <<EOF > /kustomize/base/kustomization.yaml
+resources:
+- batch.yaml
+imageTags:
+- name: myobplatform/k8s-buildkite-agent
+  newTag: 0.2.0
+commonLabels:
+  app: buildkite-kustomize-job
+  build: ${BUILDKITE_BUILD_ID}
+  pipeline: ${BUILDKITE_PIPELINE_SLUG}
+EOF
+
+cat <<EOF > /kustomize/base/batch.yaml
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
+spec:
+  backoffLimit: 0
+  completions: 1
+  template:
+    spec:
+      containers:
+      - name: step
+        image: bash
+        command: [ "find", "." ]
+        workingDir: /buildkite/builds/${BUILDKITE_AGENT_NAME}/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}
+        env:
+        - name: BUILDKITE_JOB_ID
+          value: "${BUILDKITE_JOB_ID}"
+        - name: BUILDKITE_REPO
+          value: "${BUILDKITE_REPO}"
+        - name: BUILDKITE_COMMIT
+          value: "${BUILDKITE_COMMIT}"
+        - name: BUILDKITE_BRANCH
+          value: "${BUILDKITE_BRANCH}"
+        - name: BUILDKITE_TAG
+          value: "${BUILDKITE_TAG}"
+        - name: BUILDKITE_AGENT_NAME
+          value: "${BUILDKITE_AGENT_NAME}"
+        - name: BUILDKITE_ORGANIZATION_SLUG
+          value: "${BUILDKITE_ORGANIZATION_SLUG}"
+        - name: BUILDKITE_PIPELINE_SLUG
+          value: "${BUILDKITE_PIPELINE_SLUG}"
+        volumeMounts:
+        - mountPath: /buildkite/builds
+          name: checkout-volume
+      initContainers:
+      - name: checkout
+        image: myobplatform/k8s-buildkite-agent:0.2.0
+        args: [ "bootstrap", "--command", "true" ]
+        env:
+        - name: BUILDKITE_JOB_ID
+          value: "${BUILDKITE_JOB_ID}"
+        - name: BUILDKITE_REPO
+          value: "${BUILDKITE_REPO}"
+        - name: BUILDKITE_COMMIT
+          value: "${BUILDKITE_COMMIT}"
+        - name: BUILDKITE_BRANCH
+          value: "${BUILDKITE_BRANCH}"
+        - name: BUILDKITE_BUILD_PATH
+          value: /buildkite/builds
+        - name: BUILDKITE_TAG
+          value: "${BUILDKITE_TAG}"
+        - name: BUILDKITE_AGENT_NAME
+          value: "${BUILDKITE_AGENT_NAME}"
+        - name: BUILDKITE_ORGANIZATION_SLUG
+          value: "${BUILDKITE_ORGANIZATION_SLUG}"
+        - name: BUILDKITE_PIPELINE_SLUG
+          value: "${BUILDKITE_PIPELINE_SLUG}"
+        - name: BUILDKITE_PIPELINE_PROVIDER
+          value: "${BUILDKITE_PIPELINE_PROVIDER}"
+        - name: BUILDKITE_PULL_REQUEST
+          value: "${BUILDKITE_PULL_REQUEST}"
+        - name: SSH_PRIVATE_RSA_KEY
+          valueFrom:
+            secretKeyRef:
+              key: agent-ssh
+              name: k8s-kite
+        volumeMounts:
+        - mountPath: /buildkite/builds
+          name: checkout-volume
+      volumes:
+        - name: checkout-volume
+          emptyDir: {}
+      restartPolicy: Never
+
+EOF
+
+if [[ $debug_mode ]] ; then
+  kustomize build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}
+fi
+kustomize build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY} | kubectl apply -f -
+
+sleeper=10
+jobstatus=$(kubectl get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type})
+while [[ -z "$jobstatus" ]] ; do
+      echo -n "."
+      sleep "$sleeper"
+      jobstatus=$(kubectl get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type})
+done
+
+echo "status: $jobstatus"
+if [[ "$jobstatus" == "Complete" ]] ; then
+  return_code=0
+fi
+
+echo "--- :kubernetes: job output"
+kubectl logs job/${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
+kubectl delete job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
+
+exit $return_code

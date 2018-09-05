@@ -1,0 +1,7 @@
+commonLabels:
+  pipeline: kustomizer
+bases:
+# this base path is expected by the plugin
+- /kustomize/base
+patches:
+- batch.yaml
