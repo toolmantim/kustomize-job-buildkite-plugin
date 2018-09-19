@@ -12,6 +12,12 @@ configuration:
       type: array
     debug:
       type: string
+    secret-name:
+      type: string
+    secret-key:
+      type: string
+    timeout:
+      type: integer
   required:
     - name
     - overlay

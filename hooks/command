@@ -4,6 +4,7 @@ set -euo pipefail
 
 return_code=1
 debug_mode=0
+timeout=600
 
 if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_DEBUG:-false}" =~ (true|on|1) ]] ; then
   echo "--- :hammer: Enabling debug mode"
@@ -29,6 +30,12 @@ fi
 if [[ ! -f "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}/kustomization.yaml" ]] ; then
   echo "missing kustomization.yaml file in directory ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}"
   exit 1
+fi
+
+
+if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT:-${timeout}}" != "${timeout}" ]] ; then
+  timeout=${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT}
+  echo "setting timeout to ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT}"
 fi
 
 mkdir -p /kustomize/base
@@ -111,8 +118,8 @@ spec:
         - name: SSH_PRIVATE_RSA_KEY
           valueFrom:
             secretKeyRef:
-              key: agent-ssh
-              name: k8s-kite
+              key: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_KEY:-agent-ssh}
+              name: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_NAME:-buildkite-agent}
         volumeMounts:
         - mountPath: /buildkite/builds
           name: checkout-volume
@@ -129,15 +136,23 @@ fi
 kustomize build "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}" | kubectl apply -f -
 
 sleeper=10
+counter=$timeout
 jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
 while [[ -z "$jobstatus" ]] ; do
       echo -n "."
       sleep "$sleeper"
       jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
+      (( counter -= sleeper ))
+      if [[ $counter -le 0 ]] ; then
+        echo "timeout"
+        break
+      fi
 done
 
+return_code=1
 echo "status: $jobstatus"
 if [[ "$jobstatus" == "Complete" ]] ; then
+  echo "success"
   return_code=0
 fi
 

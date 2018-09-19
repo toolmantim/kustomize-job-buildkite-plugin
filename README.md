@@ -4,7 +4,9 @@ Allows your buildkite pipeline step to submit a kubernetes job.
 Your buildkite repo will be checked out and made available to your job via an init container.
 The agent will poll the job for completion, log the output and then delete the job.
 
-Needs kustomize v1.0.7 and kubectl installed on your buildkite agent.
+Needs kustomize >= v1.0.7 and kubectl installed on your buildkite agent.
+It also expects a secret called `buildkite-agent` with a key called `agent-ssh` which contains a private 
+ssh key which is used to access git repositories.
 
 ## How?
 
