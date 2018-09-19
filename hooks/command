@@ -3,12 +3,19 @@
 set -euo pipefail
 
 return_code=1
-debug_mode=0
+debug_mode=1
 timeout=600
+default_secret_name="kite-me"
+default_secret_key="agent-ssh"
+
+function cleanup {
+  kubectl delete job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
+}
+trap cleanup EXIT
 
 if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_DEBUG:-false}" =~ (true|on|1) ]] ; then
   echo "--- :hammer: Enabling debug mode"
-  debug_mode=1
+  debug_mode=0
   set -x
 fi
 
@@ -118,8 +125,8 @@ spec:
         - name: SSH_PRIVATE_RSA_KEY
           valueFrom:
             secretKeyRef:
-              key: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_KEY:-agent-ssh}
-              name: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_NAME:-buildkite-agent}
+              key: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_KEY:-${default_secret_key}}
+              name: ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_SECRET_NAME:-${default_secret_name}}
         volumeMounts:
         - mountPath: /buildkite/builds
           name: checkout-volume
@@ -136,20 +143,17 @@ fi
 kustomize build "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}" | kubectl apply -f -
 
 sleeper=10
-counter=$timeout
+counter=${timeout}
 jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
 while [[ -z "$jobstatus" ]] ; do
       echo -n "."
       sleep "$sleeper"
       jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
-      (( counter -= sleeper ))
-      if [[ $counter -le 0 ]] ; then
-        echo "timeout"
-        break
-      fi
+      (( counter -= sleeper )) || jobstatus="timeout"
 done
 
 return_code=1
+echo
 echo "status: $jobstatus"
 if [[ "$jobstatus" == "Complete" ]] ; then
   echo "success"
@@ -158,6 +162,5 @@ fi
 
 echo "--- :kubernetes: job output"
 kubectl logs job/${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
-kubectl delete job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}
 
 exit $return_code
