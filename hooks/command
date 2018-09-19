@@ -124,16 +124,16 @@ spec:
 EOF
 
 if [[ $debug_mode ]] ; then
-  kustomize build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}
+  kustomize build "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}"
 fi
-kustomize build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY} | kubectl apply -f -
+kustomize build "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY}" | kubectl apply -f -
 
 sleeper=10
-jobstatus=$(kubectl get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type})
+jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
 while [[ -z "$jobstatus" ]] ; do
       echo -n "."
       sleep "$sleeper"
-      jobstatus=$(kubectl get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type})
+      jobstatus=$(kubectl get job "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME}" -o jsonpath={.status.conditions[].type})
 done
 
 echo "status: $jobstatus"
