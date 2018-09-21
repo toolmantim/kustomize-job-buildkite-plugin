@@ -18,6 +18,10 @@ configuration:
       type: string
     timeout:
       type: integer
+    init-image:
+      type: string
+    init-image-tag:
+      type: string
   required:
     - name
     - overlay

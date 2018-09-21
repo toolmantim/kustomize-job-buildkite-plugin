@@ -8,6 +8,8 @@ setup() {
   export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME="k8s-kustom-job"
   export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY="tests/overlay"
   export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_DEBUG="false"
+  export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_INIT_IMAGE="myobplatform/k8s-buildkite-agent:0.2.0"
+  export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT="0"
   export BUILDKITE_JOB_ID=99
   export BUILDKITE_BUILD_ID=99
   export BUILDKITE_REPO=repoman
@@ -33,6 +35,7 @@ teardown() {
   unset BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME
   unset BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY
   unset BUILDKITE_PLUGIN_KUSTOMIZE_JOB_DEBUG
+  unset BUILDKITE_PLUGIN_KUSTOMIZE_JOB_INIT_IMAGE
 }
 
 @test "Run command without job name environment var set" {
@@ -118,6 +121,36 @@ teardown() {
     "get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type} : echo Failed" \
     "logs job/${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} : echo show me some logs" \
     "delete job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} : echo job.batch \"k8s-kustom-job\" deleted"
+
+  run $PWD/hooks/command
+
+  assert_failure
+  assert [ -e /kustomize/base/batch.yaml ]
+  assert [ -e /kustomize/base/kustomization.yaml ]
+  assert_output --partial "applied to cluster"
+  assert_output --partial "show me some logs"
+  assert_output --partial "deleted"
+
+  unstub kustomize
+  unstub kubectl
+}
+
+@test "Run command should timeout" {
+
+  export BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT="10"
+
+  stub kustomize \
+    "build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY} : echo built overlay" \
+    "build ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_OVERLAY} : echo built overlay"
+  stub kubectl \
+    "apply -f - : echo applied to cluster" \
+    "get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type} : echo ''" \
+    "get job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} -o jsonpath={.status.conditions[].type} : echo ''" \
+    "logs job/${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} : echo show me some logs" \
+    "delete job ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_NAME} : echo job.batch \"k8s-kustom-job\" deleted"
+  stub sleep \
+    "10" \
+    "10"
 
   run $PWD/hooks/command
 
