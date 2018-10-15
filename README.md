@@ -49,7 +49,7 @@ steps:
 - label: ":kubernetes: job step"
   branches: master
   plugins:
-    pr8kerl/kustomize-job:
+    MYOB-Technology/kustomize-job:
       name: k8s-kustom-job
       overlay: overlays/environment
   agents:
