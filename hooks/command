@@ -79,6 +79,8 @@ spec:
         env:
         - name: BUILDKITE_JOB_ID
           value: "${BUILDKITE_JOB_ID}"
+        - name: BUILDKITE_BUILD_NUMBER
+          value: "${BUILDKITE_BUILD_NUMBER}"
         - name: BUILDKITE_REPO
           value: "${BUILDKITE_REPO}"
         - name: BUILDKITE_COMMIT
