@@ -77,3 +77,7 @@ steps:
   + override the job initContainer image with your own custom. A buildkite-agent binary is expected to exist to do the checkout.
 * init-image-tag
   + override the job initContainer image version with your own version. Set this if you set `init-image`.
+* image
+  + override the job container image with your own custom value. Normally this is done within the kustomize overlay, but you may need to pass in dynamic info from buildkite pipeline.
+* image-tag
+  + override the job container image tag with your own custom value. Normally this is done within the kustomize overlay, but you may need to pass in dynamic info from buildkite pipeline.

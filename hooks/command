@@ -5,6 +5,8 @@ set -exuo pipefail
 return_code=1
 debug_mode=1
 timeout=0
+job_image="bash"
+job_image_tag="latest"
 default_secret_name="kite-me"
 default_secret_key="agent-ssh"
 default_init_image="myobplatform/k8s-buildkite-agent"
@@ -46,6 +48,16 @@ if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT:-${timeout}}" != "${timeout}" ]]
   echo "setting timeout to ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_TIMEOUT}"
 fi
 
+if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE:-bash}" != "bash" ]] ; then
+  job_image=${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE}
+  echo "setting image to ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE}"
+fi
+
+if [[ "${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE_TAG:-latest}" != "latest" ]] ; then
+  job_image_tag=${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE_TAG}
+  echo "setting image tag to ${BUILDKITE_PLUGIN_KUSTOMIZE_JOB_IMAGE_TAG}"
+fi
+
 mkdir -p /kustomize/base
 
 cat <<EOF > /kustomize/base/kustomization.yaml
@@ -73,7 +85,7 @@ spec:
     spec:
       containers:
       - name: step
-        image: bash
+        image: "${job_image}:${job_image_tag}"
         command: [ "find", "." ]
         workingDir: /buildkite/builds/${BUILDKITE_AGENT_NAME}/${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}
         env:
