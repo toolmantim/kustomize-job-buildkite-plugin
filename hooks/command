@@ -2,6 +2,7 @@
 
 set -exuo pipefail
 
+echo "--- :hammer: kustomize plugin"
 return_code=1
 debug_mode=1
 timeout=0
