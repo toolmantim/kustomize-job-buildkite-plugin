@@ -1,4 +1,4 @@
-name: kustomize-job
+name: Kustomize Job
 description: Runs your build step as a kustomized kubernetes job
 author: https://github.com/pr8kerl
 requirements:
